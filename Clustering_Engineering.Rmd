@@ -1,0 +1,212 @@
+---
+title: "Practice Exercise_Clustering_Engineering Colleges"
+date: "August 10, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r echo = FALSE}
+install.packages("factoextra")
+install.packages("dplyr")
+library(ggplot2)
+library(factoextra)
+library(dplyr)
+library(NbClust)
+```
+
+Find out Correct Distance measurement
+Cluster Analysis require a distance matrix. Euclidean distance require data to be scaled or interval scale. Since data are Ordinal /nominal here Chebyshev distance method is appropriate distance method here.
+Scaling Standardization/Normalization should not be done here as data is ordinal.
+
+Find out Cluster Method
+K-means cluster require Euclidean distance matrix. Here distance matrix is from Chebyshev distance method and Hierarchical Cluster analysis handle nominal/ordinal data so Hierarchical Clustering is appropriate method to apply this problem.
+
+Visualizing Clusters and Finding Optimum Clusters  
+Common way of visualizing clusters is dendrogram. 
+Hierarchical methods provide very limited guidance for making final number of clusters. The only meaningful indicator relates to the distances at which the objects are combined. Similar to factor analysis's scree plot, we can seek a solution in which an additional combination of clusters or objects would occur at a greatly increased distance. This raises the issue of what a great distance is, of course. One potential way to solve this problem is to plot the number of clusters on the x-axis (starting with the one-cluster solution at the very left) against the distance at which objects or clusters are combined on the y-axis. Using this plot, we then search for the distinctive break (elbow).Final Clusters should be appropriately named and interpretable
+
+
+Let's start by importing the data and looking at the data
+
+```{r}
+ECdata <- read.csv("C:/Users/hp/Desktop/02_Next Steps/BABI Mentoring/01_May19 Batch/04_Data Mining/Session 11_Week1_Introduction to Machine Learning/Practice+Exercise-Engineering+Colleges+Case+Study_Dataset.csv")
+print(ECdata)
+head(ECdata[21:26,])
+
+str(ECdata)
+summary(ECdata)
+
+apply(ECdata[,3:7],2,mean)
+apply(ECdata[,3:7],2,sd)
+
+
+colSums(is.na(ECdata))
+rowSums(is.na(ECdata))
+sum(is.na(ECdata))
+
+```
+
+There is no missing values present across any row or column
+Let's do some basis EDA
+
+```{r}
+plot(Teaching~Fees,data=ECdata)
+plot(Teaching~Placements,data=ECdata)
+plot(Teaching~Internship,data=ECdata)
+plot(Teaching~Infrastructure,data=ECdata)
+plot(Fees~Placements,data=ECdata)
+plot(Fees~Internship,data=ECdata)
+plot(Fees~Infrastructure,data=ECdata)
+plot(Placements~Internship,data=ECdata)
+plot(Placements~Infrastructure,data=ECdata)
+plot(Internship~Infrastructure,data=ECdata)
+
+```
+
+Above Scatter plots give an idea about the data and a guess about how many clusters can be drawn. 
+How many can you guess?
+
+From Above plots you may guess there will be 2 or 3 groups
+
+Let's look at the distance now
+
+```{r}
+d.chebyshev <- dist(x=ECdata[,3:7], method ="maximum")
+d.chebyshev
+
+```
+
+```{r}
+res.hclust <- hclust(d.chebyshev, method = "complete")
+plot(res.hclust, labels = as.character(ECdata[,2]))
+
+
+```
+
+From above pictures it is clear the curve started flatter at k=3 and then K=5
+Take K=3 as the final number of clusters.Then we should cut the tree based
+Upon the k value 3
+
+```{r}
+plot(res.hclust, labels = as.character(ECdata[,2]))
+rect.hclust(res.hclust, k=3, border="darkblue")
+
+```
+Let's have a look at the final cluster data and name the clusters appropriately.
+
+
+```{r}
+groups <- cutree(res.hclust, k=10)
+data <- cbind(ECdata,groups)
+
+
+ECgroup1 <- subset(data, groups==1)
+ECgroup2 <- subset(data, groups==2)
+ECgroup3 <- subset(data, groups==3)
+
+ECgroup1
+ECgroup2
+ECgroup3
+
+CollProfile = aggregate(data[,-c(1,2, 8)],list(data$groups),FUN="mean")
+print(CollProfile)
+
+
+```
+
+Let us give names to the clusters.
+  Cluster1 as Tier1 colleges which are good in teaching quality, placement good in internship and infrastructure and also fairly ok fee, you make call those are super colleges. 
+  Clustser2 as Tier2 colleges which are medium quality teaching,average placement,average infrastructure and also fairly ok fee.You may call those are standard colleges.
+  Cluster3 as tier 3 colleges which are very poor in teaching,placement,low fee structure. You may call those are Bad colleges.
+
+Now, using K-means clustering and interpreting the result.
+
+Removing the column Engg_college and keeping all the ordinal variables for K-means
+
+```{r}
+kECdata <- ECdata[,-c(1,2)]
+head(kECdata)
+
+```
+K-means clustering requires to give k-value which tell the number of clusters to be formed. Since, College dataset are is small, starting the k-means clustering with a smaller value of 3.
+
+```{r}
+kmeans.cluster=kmeans(kECdata,3)
+kmeans.cluster
+
+```
+Now, interpreting the results from Kmeans result set. As shown above, K-means has formed 3 clusters of sizes 7, 9, 10. K-means cluster also gives the means of all the variable in the clusters formed and Within cluster sum of squares by cluster which is 80.2% in this case. We can also look at the various components created by running K-means. 
+
+```{r}
+kmeans.cluster$size
+kmeans.cluster$cluster
+kmeans.cluster$size
+kmeans.cluster$withinss
+
+```
+Plotting the k-means clusters formed.
+
+```{r}
+fviz_cluster(kmeans.cluster, data = kECdata)
+```
+
+In case of k-means clustering, it is important to determine the correct value of k. One technique to choose the best k is called the elbow method. This method uses within-group homogeneity or within-group heterogeneity to evaluate the variability. 
+
+```{r}
+wssplot <- function(data, nc=10, seed=1234){
+  wss <- (nrow(data)-1)*sum(apply(data,2,var))
+  for (i in 2:nc){
+    set.seed(seed)
+    wss[i] <- sum(kmeans(data, centers=i)$withinss)}
+  plot(1:nc, wss, type="b", xlab="Number of Clusters",
+       ylab="Within groups sum of squares")}
+
+wssplot(kECdata, nc=10)
+
+
+```
+From the plot above, we can observe that the after 4 the steep fall is consistent going forward. So re-run k-means using  k value of 4.
+
+```{r}
+set.seed(1234)
+nc <- NbClust(kECdata, min.nc=2, max.nc=6, method="kmeans")
+table(nc$Best.n[1,])
+
+barplot(table(nc$Best.n[1,]),
+          xlab="Numer of Clusters", ylab="Number of Criteria",
+          main="Number of Clusters Chosen by 26 Criteria")
+
+
+```
+
+```{r}
+kmeans.cluster=kmeans(kECdata,4)
+kmeans.cluster
+
+kmeans.cluster$cluster
+kmeans.cluster$size
+kmeans.cluster$withinss
+kmeans.cluster$cluster
+kmeans.cluster$size
+kmeans.cluster$withinss
+
+
+fviz_cluster(kmeans.cluster, data = kECdata)
+
+
+```
+```{r}
+kECdata$Clusters <- kmeans.cluster$cluster
+print(kECdata)
+aggr = aggregate(kECdata,list(kECdata$Clusters),mean)
+clus.profile <- data.frame(Cluster=aggr[,1],
+                            Freq=as.vector(table(kECdata$Clusters)),
+                            aggr[,-1])
+
+print(clus.profile)
+
+```
+
